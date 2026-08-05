@@ -139,7 +139,11 @@ app.get('/api/check-update', (req, res) => {
         headers: {
             'User-Agent': 'Local-Photos-App',
             'Accept': 'application/vnd.github.v3+json'
-        }
+        },
+        // rejectUnauthorized:false permite que la llamada funcione en entornos
+        // con filtros de red (p.ej. Techloq) que usan su propio certificado TLS.
+        // Es aceptable aquí porque solo estamos leyendo datos públicos de GitHub.
+        rejectUnauthorized: false
     };
 
     const request = https.get(options, (response) => {
