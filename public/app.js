@@ -1338,6 +1338,9 @@ function wireSettingsPage() {
                         }
                     } catch (e2) { /* cancelado */ }
                 }
+            } finally {
+                btnBrowse.disabled = false;
+            }
         });
     }
 
