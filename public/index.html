@@ -317,6 +317,17 @@
                             <input type="number" id="trashRetentionInput" class="settings-input settings-input-small" min="1" max="365" value="30">
                         </div>
 
+                        <!-- Actualizaciones -->
+                        <div class="settings-section">
+                            <h3 data-i18n="settings_update_title">Versión y Actualizaciones</h3>
+                            <p data-i18n="settings_update_description">Comprueba si hay una nueva versión disponible en GitHub.</p>
+                            <div class="add-folder-form" style="margin-top: 10px;">
+                                <span id="appVersionBadge" style="font-weight: 600; font-size: 0.95rem; color: var(--text-secondary); display: flex; align-items: center; background: rgba(99, 102, 241, 0.1); padding: 6px 12px; border-radius: 6px;">Local Photos v2.1.0</span>
+                                <button id="btnCheckUpdate" type="button" class="settings-btn-secondary" data-i18n="settings_check_update_button"><i class="fa-solid fa-arrows-rotate"></i> Buscar actualización</button>
+                            </div>
+                            <div id="updateStatusNotice" style="display: none; margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; border: 1px solid transparent;"></div>
+                        </div>
+
                         <div class="settings-actions-footer">
                             <button id="btnSaveConfig" class="settings-btn-success" data-i18n="settings_save_button">Guardar y Escanear Ahora</button>
                         </div>

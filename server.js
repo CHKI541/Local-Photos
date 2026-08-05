@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 const sharp = require('sharp');
 const archiver = require('archiver');
 const { spawn, exec, execFile } = require('child_process');
@@ -123,6 +124,80 @@ app.post('/api/browse-folder', (req, res) => {
         res.json({ folderPath });
     });
 });
+
+app.get('/api/check-update', (req, res) => {
+    let currentVersion = '2.1.0';
+    try {
+        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+        if (pkg && pkg.version) currentVersion = pkg.version;
+    } catch (e) {}
+
+    const options = {
+        hostname: 'api.github.com',
+        path: '/repos/CHKI541/Local-Photos/releases/latest',
+        method: 'GET',
+        headers: {
+            'User-Agent': 'Local-Photos-App',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+    };
+
+    const request = https.get(options, (response) => {
+        let data = '';
+        response.on('data', chunk => { data += chunk; });
+        response.on('end', () => {
+            if (response.statusCode === 200) {
+                try {
+                    const release = JSON.parse(data);
+                    const rawTag = release.tag_name || '';
+                    const latestVersion = rawTag.replace(/^v/, '');
+                    const hasUpdate = isNewerVersion(latestVersion, currentVersion);
+                    return res.json({
+                        success: true,
+                        currentVersion,
+                        latestVersion: latestVersion || currentVersion,
+                        hasUpdate,
+                        releaseUrl: release.html_url || 'https://github.com/CHKI541/Local-Photos/releases',
+                        releaseNotes: release.body || '',
+                        name: release.name || rawTag
+                    });
+                } catch (err) {
+                    return res.status(500).json({ error: 'Error procesando respuesta de GitHub' });
+                }
+            } else if (response.statusCode === 404) {
+                return res.json({
+                    success: true,
+                    currentVersion,
+                    latestVersion: currentVersion,
+                    hasUpdate: false,
+                    noReleases: true
+                });
+            } else {
+                return res.status(500).json({ error: `GitHub API respondió con código ${response.statusCode}` });
+            }
+        });
+    });
+
+    request.on('error', (err) => {
+        console.error('[server] Error consultando actualizaciones en GitHub:', err.message);
+        res.status(500).json({ error: err.message });
+    });
+
+    request.end();
+});
+
+function isNewerVersion(latest, current) {
+    if (!latest || !current) return false;
+    const l = latest.split('.').map(n => parseInt(n, 10) || 0);
+    const c = current.split('.').map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(l.length, c.length); i++) {
+        const lNum = l[i] || 0;
+        const cNum = c[i] || 0;
+        if (lNum > cNum) return true;
+        if (lNum < cNum) return false;
+    }
+    return false;
+}
 
 app.get('/api/scan/status', (req, res) => {
     res.json({

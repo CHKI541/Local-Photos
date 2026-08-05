@@ -1338,8 +1338,66 @@ function wireSettingsPage() {
                         }
                     } catch (e2) { /* cancelado */ }
                 }
+        });
+    }
+
+    const btnCheckUpdate = document.getElementById('btnCheckUpdate');
+    const updateNotice = document.getElementById('updateStatusNotice');
+    if (btnCheckUpdate) {
+        btnCheckUpdate.addEventListener('click', async () => {
+            btnCheckUpdate.disabled = true;
+            btnCheckUpdate.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('update_checking')}`;
+            if (updateNotice) {
+                updateNotice.style.display = 'none';
+                updateNotice.innerHTML = '';
+            }
+            try {
+                const res = await API.get('/api/check-update');
+                if (res && res.currentVersion) {
+                    const badge = document.getElementById('appVersionBadge');
+                    if (badge) badge.textContent = `Local Photos v${res.currentVersion}`;
+                }
+                if (res && res.hasUpdate) {
+                    if (updateNotice) {
+                        updateNotice.style.display = 'block';
+                        updateNotice.style.background = 'rgba(34, 197, 94, 0.12)';
+                        updateNotice.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+                        updateNotice.style.color = '#15803d';
+                        updateNotice.innerHTML = `
+                            <strong>${t('update_available', { version: res.latestVersion })}</strong><br>
+                            <a href="${res.releaseUrl}" target="_blank" class="settings-btn-primary" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; text-decoration: none;">
+                                <i class="fa-brands fa-github"></i> ${t('update_download_button', { version: res.latestVersion })}
+                            </a>
+                        `;
+                    }
+                } else if (res && res.noReleases) {
+                    if (updateNotice) {
+                        updateNotice.style.display = 'block';
+                        updateNotice.style.background = 'rgba(99, 102, 241, 0.08)';
+                        updateNotice.style.borderColor = 'rgba(99, 102, 241, 0.2)';
+                        updateNotice.style.color = 'var(--text-primary)';
+                        updateNotice.textContent = t('update_no_releases');
+                    }
+                } else {
+                    if (updateNotice) {
+                        updateNotice.style.display = 'block';
+                        updateNotice.style.background = 'rgba(99, 102, 241, 0.08)';
+                        updateNotice.style.borderColor = 'rgba(99, 102, 241, 0.2)';
+                        updateNotice.style.color = 'var(--text-primary)';
+                        updateNotice.textContent = t('update_already_latest', { version: res ? res.currentVersion : '2.1.0' });
+                    }
+                }
+            } catch (e) {
+                if (updateNotice) {
+                    updateNotice.style.display = 'block';
+                    updateNotice.style.background = 'rgba(239, 68, 68, 0.1)';
+                    updateNotice.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                    updateNotice.style.color = '#b91c1c';
+                    updateNotice.textContent = t('update_error');
+                }
             } finally {
-                btnBrowse.disabled = false;
+                btnCheckUpdate.disabled = false;
+                btnCheckUpdate.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> ${t('settings_check_update_button')}`;
             }
         });
     }
