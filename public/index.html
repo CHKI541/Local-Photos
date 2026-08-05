@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- i18n.js va primero: fija lang/dir (RTL para hebreo) y el título antes de
+         que el navegador empiece a pintar, para que no haya un "salto" visual. -->
+    <script src="i18n.js"></script>
+    <title>Local Photos</title>
+    <!-- Favicon en línea (SVG data-URI): cámara minimalista -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2' width='20' height='20' rx='6' fill='%236366f1'/%3E%3Ccircle cx='12' cy='12' r='5' fill='none' stroke='%23ffffff' stroke-width='2'/%3E%3Ccircle cx='12' cy='12' r='2' fill='%23ffffff'/%3E%3Ccircle cx='17.5' cy='6.5' r='1.2' fill='%23ffffff'/%3E%3C/svg%3E">
+    <!-- Tipografías (Roboto, Plus Jakarta Sans, y Rubik para hebreo) servidas LOCALMENTE
+         desde vendor/fonts/ para que la app funcione 100% sin conexión. -->
+    <link rel="stylesheet" href="vendor/fonts/fonts.css">
+    <!-- FontAwesome (íconos) — copia local en vendor/fontawesome/. -->
+    <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+    <!-- Leaflet (mapa de "Lugares") — copia local en vendor/leaflet/. -->
+    <link rel="stylesheet" href="vendor/leaflet/leaflet.css"/>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-scrim" id="sidebarScrim"></div>
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <button class="sidebar-mobile-close" id="btnCloseSidebar" data-i18n-aria-label="sidebar_close"><i class="fa-solid fa-xmark"></i></button>
+            <div class="logo-container">
+                <!-- Marca minimalista de Local Photos -->
+                <svg class="photo-pinwheel" viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" focusable="false">
+                    <defs>
+                        <linearGradient id="logoGradMain" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#6366f1"/>
+                            <stop offset="50%" stop-color="#4f46e5"/>
+                            <stop offset="100%" stop-color="#06b6d4"/>
+                        </linearGradient>
+                        <filter id="logoSoftShadow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" flood-color="#4f46e5" flood-opacity="0.3"/>
+                        </filter>
+                    </defs>
+                    <g filter="url(#logoSoftShadow)">
+                        <rect x="2" y="2" width="20" height="20" rx="6" fill="url(#logoGradMain)"/>
+                        <circle cx="12" cy="12" r="5" fill="none" stroke="#ffffff" stroke-width="2"/>
+                        <circle cx="12" cy="12" r="2" fill="#ffffff"/>
+                        <circle cx="17.5" cy="6.5" r="1.2" fill="#ffffff"/>
+                    </g>
+                </svg>
+                <span class="logo-text">Local <span class="logo-subtext" data-i18n="app_name_secondary">Photos</span></span>
+            </div>
+
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-page="timeline">
+                    <i class="fa-regular fa-image nav-icon"></i>
+                    <span class="nav-label" data-i18n="nav_photos">Fotos</span>
+                </a>
+                <a href="#" class="nav-item" data-page="favorites">
+                    <i class="fa-regular fa-star nav-icon"></i>
+                    <span class="nav-label" data-i18n="nav_favorites">Favoritos</span>
+                </a>
+                <a href="#" class="nav-item" data-page="videos">
+                    <i class="fa-regular fa-circle-play nav-icon"></i>
+                    <span class="nav-label" data-i18n="nav_videos">Videos</span>
+                </a>
+                <a href="#" class="nav-item" data-page="albums">
+                    <i class="fa-regular fa-folder-closed nav-icon"></i>
+                    <span class="nav-label" data-i18n="nav_albums">Álbumes</span>
+                </a>
+                <a href="#" class="nav-item" data-page="people">
+                    <i class="fa-regular fa-face-smile nav-icon"></i>
+                    <span class="nav-label" data-i18n="nav_people">Personas</span>
+                </a>
+                <a href="#" class="nav-item" data-page="places">
+                    <i class="fa-solid fa-location-dot nav-icon"></i>
+                    <span class="nav-label" data-i18n="nav_places">Lugares</span>
+                </a>
+                <a href="#" class="nav-item" data-page="trash">
+                    <i class="fa-regular fa-trash-can nav-icon"></i>
+                    <span class="nav-label" data-i18n="nav_trash">Papelera</span>
+                </a>
+            </nav>
+
+            <footer class="sidebar-footer">
+                <button id="btnSettings" class="sidebar-settings-link" data-i18n="sidebar_configure_folders"><i class="fa-solid fa-gear"></i> Configurar carpetas</button>
+                <span data-i18n="sidebar_footer">App local · sin conexión a servidores externos</span>
+            </footer>
+        </aside>
+
+        <!-- Contenedor Principal -->
+        <main class="main-content">
+            <!-- Cabecera Superior -->
+            <header class="top-header">
+                <button class="sidebar-mobile-open" id="btnOpenSidebar" data-i18n-aria-label="sidebar_open"><i class="fa-solid fa-bars"></i></button>
+                <div class="search-bar-container">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="searchInput" class="search-input" data-i18n-placeholder="header_search_placeholder" placeholder="Busca por nombre de archivo, carpeta o persona...">
+                    <i class="fa-solid fa-xmark search-clear" id="searchClear" data-i18n-title="header_search_clear" style="display: none;"></i>
+                </div>
+
+                <div class="header-actions">
+                    <!-- Estado de indexación / escaneo -->
+                    <div id="scanStatusIndicator" class="scan-status-pill" style="display: none;">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i>
+                        <span id="scanStatusText" data-i18n="header_scanning_pc">Escaneando PC...</span>
+                    </div>
+                    <div id="facesStatusIndicator" class="scan-status-pill faces-indicator" style="display: none;" data-i18n-title="header_analyzing_faces">
+                        <i class="fa-regular fa-face-smile"></i>
+                        <span id="facesStatusText" data-i18n="header_analyzing_faces">Analizando caras...</span>
+                    </div>
+
+                    <!-- Densidad de la cuadrícula -->
+                    <div class="grid-density-group" role="group" data-i18n-aria-label="density_group_label">
+                        <button class="density-btn" data-density="small" data-i18n-title="density_small_title"><i class="fa-solid fa-table-cells"></i></button>
+                        <button class="density-btn active" data-density="medium" data-i18n-title="density_medium_title"><i class="fa-solid fa-grip"></i></button>
+                        <button class="density-btn" data-density="large" data-i18n-title="density_large_title"><i class="fa-solid fa-square"></i></button>
+                    </div>
+
+                    <!-- Selector de idioma -->
+                    <div class="lang-switcher">
+                        <button id="btnLangSwitch" class="header-action-btn" data-i18n-aria-label="lang_menu_label" data-i18n-title="lang_menu_label">
+                            <i class="fa-solid fa-globe"></i>
+                        </button>
+                        <div class="lang-menu" id="langMenu">
+                            <button class="lang-menu-item" data-lang="es">Español</button>
+                            <button class="lang-menu-item" data-lang="en">English</button>
+                            <button class="lang-menu-item" data-lang="he">עברית</button>
+                        </div>
+                    </div>
+
+                    <button id="btnHeaderSettings" class="header-action-btn" data-i18n-title="header_settings_title">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                    <div class="header-profile-circle">
+                        <span class="profile-letter">I</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Contenido de las Páginas -->
+            <div class="page-viewport">
+                <!-- Vista Timeline (Fotos) -->
+                <section id="page-timeline" class="app-page active">
+                    <!-- Tarjeta de progreso de escaneo activo -->
+                    <div id="timelineScanProgress" class="scan-progress-card" style="display: none;">
+                        <div class="progress-card-header">
+                            <span class="progress-title"><i class="fa-solid fa-circle-notch fa-spin"></i> <span data-i18n="timeline_indexing_title">Indexando fotos de tu PC</span></span>
+                            <span id="progressPercentText" class="progress-subtitle" data-i18n="timeline_calculating">Calculando...</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div id="progressBarInner" class="progress-bar-fill"></div>
+                        </div>
+                        <div class="progress-card-details">
+                            <span id="progressCurrentFolder">Carpeta: ...</span>
+                            <span id="progressFileCount">Procesadas: 0</span>
+                        </div>
+                    </div>
+
+                    <div id="memoriesStrip" class="memories-strip" style="display: none;">
+                        <h2 class="memories-title"><i class="fa-regular fa-clock"></i> <span data-i18n="memories_title">Recuerdos</span></h2>
+                        <div id="memoriesScroller" class="memories-scroller"></div>
+                    </div>
+
+                    <div id="timelineContainer" class="timeline-container">
+                        <!-- Las fotos se inyectarán aquí ordenadas por fecha -->
+                        <div class="loading-spinner">
+                            <i class="fa-solid fa-circle-notch fa-spin fa-2x"></i>
+                            <p data-i18n="timeline_loading">Cargando tus fotos...</p>
+                        </div>
+                    </div>
+
+                    <!-- Barra de navegación por años en el lateral -->
+                    <div id="timelineScrollNav" class="timeline-scroll-nav"></div>
+                </section>
+
+                <!-- Vista genérica de cuadrícula: Favoritos / Videos / Resultados de búsqueda / Carpeta -->
+                <section id="page-simple-grid" class="app-page">
+                    <div class="page-header">
+                        <h1 id="simpleGridTitle">Favoritos</h1>
+                    </div>
+                    <div id="simpleGridContainer" class="timeline-container"></div>
+                </section>
+
+                <!-- Vista Álbumes -->
+                <section id="page-albums" class="app-page">
+                    <div class="page-header">
+                        <h1 data-i18n="albums_page_title">Álbumes</h1>
+                        <div class="page-header-actions">
+                            <button class="settings-btn-primary" id="btnCreateAlbum"><i class="fa-solid fa-plus"></i> <span data-i18n="albums_create_button">Álbum nuevo</span></button>
+                        </div>
+                    </div>
+                    <div id="userAlbumsGrid" class="albums-grid"></div>
+
+                    <div class="page-header" style="margin-top: 8px;">
+                        <h2 class="section-subheading" data-i18n="albums_folders_section_title">Carpetas de tu PC</h2>
+                    </div>
+                    <div id="albumsGrid" class="albums-grid">
+                        <!-- Las tarjetas de carpetas se cargarán aquí -->
+                    </div>
+                </section>
+
+                <!-- Vista de Detalle de Álbum -->
+                <section id="page-album-detail" class="app-page">
+                    <div class="page-header">
+                        <button class="back-nav-btn" id="btnBackFromAlbum"><i class="fa-solid fa-arrow-left"></i></button>
+                        <h1 id="albumDetailTitle" class="editable-title" contenteditable="true" spellcheck="false"></h1>
+                        <div class="page-header-actions">
+                            <button class="text-link-btn" id="btnDeleteAlbum"><i class="fa-regular fa-trash-can"></i> <span data-i18n="album_delete_button">Eliminar álbum</span></button>
+                        </div>
+                    </div>
+                    <div id="albumDetailContainer" class="timeline-container"></div>
+                </section>
+
+                <!-- Vista Personas -->
+                <section id="page-people" class="app-page">
+                    <div class="page-header">
+                        <h1 data-i18n="people_page_title">Personas</h1>
+                        <!-- Acciones por defecto -->
+                        <div class="page-header-actions" id="peopleDefaultActions">
+                            <button class="text-link-btn" id="btnClusterNow">
+                                <i class="fa-solid fa-rotate"></i> <span data-i18n="people_cluster_now">Agrupar rostros ahora</span>
+                            </button>
+                            <button class="text-link-btn" id="btnGroupFaces">
+                                <i class="fa-solid fa-object-group"></i> <span data-i18n="people_group_faces">Agrupar caras</span>
+                            </button>
+                        </div>
+                        <!-- Acciones en modo selección -->
+                        <div class="page-header-actions" id="peopleSelectionActions" style="display: none;">
+                            <span id="selectedCountText" class="selection-count-text">0</span>
+                            <button class="settings-btn-primary" id="btnConfirmMerge" disabled>
+                                <i class="fa-solid fa-link"></i> <span data-i18n="people_confirm_merge">Agrupar seleccionadas</span>
+                            </button>
+                            <button class="storage-btn storage-btn-inline" id="btnCancelMerge" data-i18n="people_cancel">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                    <div id="peopleGrid" class="people-grid">
+                        <!-- Las caras circulares se inyectarán aquí -->
+                    </div>
+                </section>
+
+                <!-- Vista Lugares -->
+                <section id="page-places" class="app-page">
+                    <div class="page-header">
+                        <h1 data-i18n="places_page_title">Lugares</h1>
+                    </div>
+                    <div id="mapContainer" class="map-view-container">
+                        <div id="placesMap"></div>
+                    </div>
+                </section>
+
+                <!-- Vista Papelera -->
+                <section id="page-trash" class="app-page">
+                    <div class="page-header">
+                        <h1 data-i18n="trash_page_title">Papelera</h1>
+                        <div class="page-header-actions">
+                            <button class="text-link-btn" id="btnEmptyTrash"><i class="fa-solid fa-trash-can"></i> <span data-i18n="trash_empty_button">Vaciar papelera</span></button>
+                        </div>
+                    </div>
+                    <p class="trash-retention-notice">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span id="trashRetentionNoticeText">Los elementos de la papelera se eliminan definitivamente después de 30 días.</span>
+                    </p>
+                    <div id="trashGrid" class="timeline-container"></div>
+                </section>
+
+                <!-- Vista Configuración -->
+                <section id="page-settings" class="app-page">
+                    <div class="page-header">
+                        <h1 data-i18n="settings_page_title">Configuración</h1>
+                    </div>
+                    <div class="settings-card">
+                        <h3 data-i18n="settings_folders_title">Directorios locales indexados</h3>
+                        <p data-i18n="settings_folders_description">Agrega los discos o carpetas que contienen tus fotos y videos. El sistema los buscará automáticamente omitiendo archivos del sistema.</p>
+
+                        <div id="foldersList" class="folders-list">
+                            <!-- Lista de carpetas configuradas -->
+                        </div>
+
+                        <div class="add-folder-form">
+                            <input type="text" id="newFolderPathInput" data-i18n-placeholder="settings_folder_placeholder" placeholder="Ej: E:\Fotos o C:\Users\usuario\Pictures" class="settings-input">
+                            <button id="btnBrowseFolder" type="button" class="settings-btn-secondary" data-i18n="settings_browse_button"><i class="fa-regular fa-folder-open"></i> Explorar...</button>
+                            <button id="btnAddFolder" class="settings-btn-primary" data-i18n="settings_add_folder_button">Añadir Carpeta</button>
+                        </div>
+
+                        <!-- Reconocimiento facial -->
+                        <div class="settings-section">
+                            <div class="settings-toggle-row">
+                                <div>
+                                    <h3 data-i18n="settings_face_recognition_title">Reconocimiento facial</h3>
+                                    <p data-i18n="settings_face_recognition_description">Agrupa caras parecidas para armar la sección "Personas". Se procesa 100% en tu navegador; ninguna foto sale de tu PC.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="faceRecognitionToggle" checked>
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </div>
+
+                            <h3 style="margin-top: 20px;" data-i18n="settings_threshold_title">Sensibilidad de agrupamiento</h3>
+                            <p id="thresholdDescription">
+                                Si personas distintas se mezclan en un mismo grupo, muévelo hacia <strong>Estricto</strong>. Si una misma persona se divide en varios grupos, muévelo hacia <strong>Permisivo</strong>.
+                            </p>
+
+                            <div class="threshold-slider-row">
+                                <span class="threshold-label" data-i18n="settings_threshold_strict_label">Estricto (0.38)</span>
+                                <input type="range" id="clusterThresholdInput" min="0.38" max="0.52" step="0.01" value="0.44">
+                                <span class="threshold-label threshold-label-right" data-i18n="settings_threshold_permissive_label">Permisivo (0.52)</span>
+                            </div>
+
+                            <div id="thresholdValueText" class="threshold-value-text">
+                                Precisión actual: 0.44
+                            </div>
+                        </div>
+
+                        <!-- Papelera -->
+                        <div class="settings-section">
+                            <h3 data-i18n="settings_trash_title">Papelera</h3>
+                            <p data-i18n="settings_trash_description">Días que se conservan los elementos eliminados antes de borrarse definitivamente.</p>
+                            <input type="number" id="trashRetentionInput" class="settings-input settings-input-small" min="1" max="365" value="30">
+                        </div>
+
+                        <div class="settings-actions-footer">
+                            <button id="btnSaveConfig" class="settings-btn-success" data-i18n="settings_save_button">Guardar y Escanear Ahora</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Vista de Detalle de Persona -->
+                <section id="page-person-detail" class="app-page">
+                    <div class="page-header">
+                        <button id="btnBackToPeople" class="back-nav-btn"><i class="fa-solid fa-arrow-left"></i></button>
+                        <div class="person-title-edit-container">
+                            <input type="text" id="personNameInput" class="person-name-edit-input" data-i18n-placeholder="person_name_placeholder" placeholder="Añadir nombre...">
+                            <button id="btnSavePersonName" class="settings-btn-primary" data-i18n="person_save_button">Guardar</button>
+                        </div>
+                    </div>
+                    <div id="personPhotosGrid" class="timeline-container"></div>
+                </section>
+            </div>
+
+            <!-- Barra flotante de acciones en modo selección -->
+            <div id="selectionActionBar" class="selection-action-bar" style="display: none;">
+                <button id="btnSelectionCancel" class="selection-cancel-btn" data-i18n-title="selection_cancel_title"><i class="fa-solid fa-xmark"></i></button>
+                <span id="selectionCountText" class="selection-bar-count">0</span>
+                <div class="selection-bar-actions">
+                    <button class="selection-action-btn" id="btnSelFavorite" data-i18n-title="selection_favorite_title"><i class="fa-regular fa-star"></i></button>
+                    <button class="selection-action-btn" id="btnSelChangeDate" data-i18n-title="selection_change_date_title"><i class="fa-regular fa-calendar-days"></i></button>
+                    <button class="selection-action-btn" id="btnSelAddAlbum" data-i18n-title="selection_add_album_title"><i class="fa-solid fa-folder-plus"></i></button>
+                    <button class="selection-action-btn" id="btnSelRemoveAlbum" data-i18n-title="selection_remove_album_title" style="display: none;"><i class="fa-solid fa-folder-minus"></i></button>
+                    <button class="selection-action-btn" id="btnSelDownload" data-i18n-title="selection_download_title"><i class="fa-solid fa-download"></i></button>
+                    <button class="selection-action-btn selection-action-danger" id="btnSelTrash" data-i18n-title="selection_trash_title"><i class="fa-regular fa-trash-can"></i></button>
+                    <button class="selection-action-btn" id="btnSelRestore" data-i18n-title="selection_restore_title" style="display: none;"><i class="fa-solid fa-clock-rotate-left"></i></button>
+                    <button class="selection-action-btn selection-action-danger" id="btnSelDeleteForever" data-i18n-title="selection_delete_forever_title" style="display: none;"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Visor de Fotos y Videos en Pantalla Completa (Lightbox) -->
+    <div id="lightbox" class="lightbox-overlay" style="display: none;">
+        <div class="lightbox-topbar">
+            <button class="lightbox-icon-btn" id="lightboxClose" data-i18n-title="lightbox_close_title"><i class="fa-solid fa-xmark"></i></button>
+            <div class="lightbox-topbar-spacer"></div>
+            <div class="lightbox-topbar-actions">
+                <button class="lightbox-icon-btn" id="lightboxFavorite" data-i18n-title="lightbox_favorite_title"><i class="fa-regular fa-star"></i></button>
+                <button class="lightbox-icon-btn" id="lightboxSlideshow" data-i18n-title="lightbox_slideshow_title"><i class="fa-solid fa-play"></i></button>
+                <button class="lightbox-icon-btn" id="lightboxAddAlbum" data-i18n-title="lightbox_add_album_title"><i class="fa-solid fa-folder-plus"></i></button>
+                <button class="lightbox-icon-btn" id="lightboxDownload" data-i18n-title="lightbox_download_title"><i class="fa-solid fa-download"></i></button>
+                <button class="lightbox-icon-btn" id="lightboxTrash" data-i18n-title="lightbox_trash_title"><i class="fa-regular fa-trash-can"></i></button>
+                <button class="lightbox-icon-btn" id="lightboxInfoToggle" data-i18n-title="lightbox_info_title"><i class="fa-solid fa-circle-info"></i></button>
+            </div>
+        </div>
+
+        <button class="lightbox-nav prev" id="lightboxPrev" data-i18n-title="lightbox_prev_title"><i class="fa-solid fa-chevron-left"></i></button>
+        <button class="lightbox-nav next" id="lightboxNext" data-i18n-title="lightbox_next_title"><i class="fa-solid fa-chevron-right"></i></button>
+
+        <div class="lightbox-content">
+            <div class="lightbox-media-zoom-wrap" id="lightboxZoomWrap">
+                <img id="lightboxImage" src="" alt="">
+                <video id="lightboxVideo" controls playsinline style="display:none;"></video>
+            </div>
+            <div class="lightbox-video-fallback" id="lightboxVideoFallback" style="display:none;">
+                <i class="fa-regular fa-circle-play"></i>
+                <p data-i18n="lightbox_video_not_supported">Este navegador no puede reproducir este video.</p>
+                <button class="settings-btn-primary" id="lightboxOpenWindowsFallback" data-i18n="lightbox_open_system_app">Abrir con la app del sistema</button>
+            </div>
+        </div>
+
+        <!-- Panel de información deslizable -->
+        <aside class="lightbox-info-panel" id="lightboxInfoPanel">
+            <h4 id="lightboxFilename">foto.jpg</h4>
+            <div class="lightbox-date-row" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <p id="lightboxDate" data-i18n="lightbox_date_placeholder" style="margin:0;">Fecha de captura</p>
+                <button id="btnEditLightboxDate" class="lightbox-icon-btn" data-i18n-title="lightbox_change_date_title" style="padding:4px 8px;font-size:13px;opacity:0.8;background:transparent;border:none;color:inherit;cursor:pointer;"><i class="fa-solid fa-pen"></i></button>
+            </div>
+            <button id="lightboxOpenWindows" class="lightbox-open-btn">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> <span data-i18n="lightbox_open_system_app">Abrir con la app del sistema</span>
+            </button>
+
+            <div id="lightboxExifBlock" class="lightbox-exif-block" style="display:none;">
+                <div class="exif-row"><i class="fa-solid fa-camera"></i><span id="exifCamera"></span></div>
+                <div class="exif-row" id="exifSettingsRow" style="display:none;"><i class="fa-solid fa-sliders"></i><span id="exifSettings"></span></div>
+                <div class="exif-row" id="exifDimsRow" style="display:none;"><i class="fa-solid fa-expand"></i><span id="exifDims"></span></div>
+                <div class="exif-row" id="exifSizeRow" style="display:none;"><i class="fa-regular fa-file"></i><span id="exifSize"></span></div>
+                <div class="exif-row" id="exifPathRow"><i class="fa-regular fa-folder"></i><span id="exifPath"></span></div>
+            </div>
+
+            <div id="lightboxFaces" class="lightbox-detected-faces">
+                <!-- Caras detectadas en la foto -->
+            </div>
+        </aside>
+    </div>
+
+    <!-- Leaflet Map JS — copia local (antes venía de un CDN). -->
+    <script src="vendor/leaflet/leaflet.js"></script>
+    <script src="ui-helpers.js"></script>
+    <!-- face-api.js library for Browser Face Detection (Local, 100% offline) -->
+    <script src="face-api.js"></script>
+    <script src="app.js"></script>
+    <script src="lightbox.js"></script>
+    <script src="face-scanner.js"></script>
+    <script src="video-scanner.js"></script>
+</body>
+</html>

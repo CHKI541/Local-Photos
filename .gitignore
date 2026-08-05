@@ -1,0 +1,12 @@
+node_modules/
+dist/
+_to_delete/
+_backup*/
+*.zip
+db.json
+db.json.tmp
+db.json.corrupto-*.bak
+npm-debug.log
+.DS_Store
+Thumbs.db
+
