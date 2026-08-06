@@ -116,6 +116,14 @@ function updateInfoPanel(photo) {
     document.getElementById('lightboxFilename').textContent = photo.filename;
     document.getElementById('lightboxDate').textContent = `${formatDateLong(photo.dateTaken)} · ${formatTime(photo.dateTaken)}`;
 
+    // Fecha hebrea (opción de Configuración "mostrar fecha hebrea en las imágenes").
+    const hebEl = document.getElementById('lightboxHebrewDate');
+    if (hebEl) {
+        const heb = (window.appConfig && window.appConfig.showHebrewDate) ? formatHebrewDateLong(photo.dateTaken) : '';
+        hebEl.textContent = heb;
+        hebEl.style.display = heb ? 'block' : 'none';
+    }
+
     // El bloque de datos (cámara, ISO, dimensiones, peso, ruta) venía con
     // display:none fijo en el HTML y ningún código lo mostraba nunca: la ruta y las
     // dimensiones siempre existen, así que el panel de información debe mostrarlo.
@@ -419,10 +427,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeTag = document.activeElement && document.activeElement.tagName;
         if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || (document.activeElement && document.activeElement.isContentEditable)) return;
 
+        // En RTL (hebreo) las posiciones visuales de las flechas se invierten, así que las
+        // teclas de flecha también: ← va a la foto de la izquierda (la "siguiente" en RTL).
+        const rtl = (typeof isRTL === 'function') ? isRTL() : false;
         switch (e.key) {
             case 'Escape': closeLightbox(); break;
-            case 'ArrowLeft': navigateLightbox(-1); break;
-            case 'ArrowRight': navigateLightbox(1); break;
+            case 'ArrowLeft': navigateLightbox(rtl ? 1 : -1); break;
+            case 'ArrowRight': navigateLightbox(rtl ? -1 : 1); break;
             case 'f': case 'F': toggleLightboxFavorite(); break;
             case 'Delete': case 'Backspace': trashCurrentFromLightbox(); break;
             case 'i': case 'I': toggleInfoPanel(); break;

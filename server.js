@@ -1,7 +1,6 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const https = require('https');
 const sharp = require('sharp');
 const archiver = require('archiver');
 const { spawn, exec, execFile } = require('child_process');
@@ -100,7 +99,7 @@ function streamFile(req, res, filePath, extraHeaders = {}) {
 app.get('/api/config', (req, res) => { res.json(db.config); });
 
 app.post('/api/config', async (req, res) => {
-    const { folders, clusterThreshold, faceRecognitionEnabled, trashRetentionDays } = req.body || {};
+    const { folders, clusterThreshold, faceRecognitionEnabled, trashRetentionDays, showHebrewDate, sortByHebrewDate, memoriesHebrewDate } = req.body || {};
     const patch = {};
     if (folders !== undefined) {
         if (!Array.isArray(folders)) return res.status(400).json({ error: 'folders debe ser un array' });
@@ -109,13 +108,20 @@ app.post('/api/config', async (req, res) => {
     if (clusterThreshold !== undefined) patch.clusterThreshold = clusterThreshold;
     if (faceRecognitionEnabled !== undefined) patch.faceRecognitionEnabled = faceRecognitionEnabled;
     if (trashRetentionDays !== undefined) patch.trashRetentionDays = trashRetentionDays;
+    if (showHebrewDate !== undefined) patch.showHebrewDate = showHebrewDate;
+    if (sortByHebrewDate !== undefined) patch.sortByHebrewDate = sortByHebrewDate;
+    if (memoriesHebrewDate !== undefined) patch.memoriesHebrewDate = memoriesHebrewDate;
     await db.saveConfig(patch);
     res.json({ success: true, config: db.config });
 });
 
 app.post('/api/browse-folder', (req, res) => {
-    const psScript = '[System.Reflection.Assembly]::LoadWithPartialName("System.windows.forms") | Out-Null; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.ShowNewFolderButton = $true; if ($f.ShowDialog() -eq "OK") { Write-Output $f.SelectedPath }';
-    execFile('powershell.exe', ['-NoProfile', '-Command', psScript], (error, stdout) => {
+    // IMPORTANTE: se fuerza la salida de PowerShell a UTF-8 antes de escribir la ruta.
+    // Sin esto, PowerShell emite en la página de códigos de la consola (no UTF-8) y las
+    // rutas con caracteres no-ASCII (hebreo, árabe, tildes, etc.) llegaban a Node como
+    // signos de pregunta "?" — por eso "Explorar" no servía con carpetas en hebreo.
+    const psScript = '[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; [System.Reflection.Assembly]::LoadWithPartialName("System.windows.forms") | Out-Null; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.ShowNewFolderButton = $true; if ($f.ShowDialog() -eq "OK") { [Console]::Out.Write($f.SelectedPath) }';
+    execFile('powershell.exe', ['-NoProfile', '-Command', psScript], { encoding: 'utf8' }, (error, stdout) => {
         if (error) {
             console.error('[server] Error al abrir el explorador de carpetas:', error.message);
             return res.status(500).json({ error: 'No se pudo abrir el explorador' });
@@ -124,84 +130,6 @@ app.post('/api/browse-folder', (req, res) => {
         res.json({ folderPath });
     });
 });
-
-app.get('/api/check-update', (req, res) => {
-    let currentVersion = '2.1.0';
-    try {
-        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
-        if (pkg && pkg.version) currentVersion = pkg.version;
-    } catch (e) {}
-
-    const options = {
-        hostname: 'api.github.com',
-        path: '/repos/CHKI541/Local-Photos/releases/latest',
-        method: 'GET',
-        headers: {
-            'User-Agent': 'Local-Photos-App',
-            'Accept': 'application/vnd.github.v3+json'
-        },
-        // rejectUnauthorized:false permite que la llamada funcione en entornos
-        // con filtros de red (p.ej. Techloq) que usan su propio certificado TLS.
-        // Es aceptable aquí porque solo estamos leyendo datos públicos de GitHub.
-        rejectUnauthorized: false
-    };
-
-    const request = https.get(options, (response) => {
-        let data = '';
-        response.on('data', chunk => { data += chunk; });
-        response.on('end', () => {
-            if (response.statusCode === 200) {
-                try {
-                    const release = JSON.parse(data);
-                    const rawTag = release.tag_name || '';
-                    const latestVersion = rawTag.replace(/^v/, '');
-                    const hasUpdate = isNewerVersion(latestVersion, currentVersion);
-                    return res.json({
-                        success: true,
-                        currentVersion,
-                        latestVersion: latestVersion || currentVersion,
-                        hasUpdate,
-                        releaseUrl: release.html_url || 'https://github.com/CHKI541/Local-Photos/releases',
-                        releaseNotes: release.body || '',
-                        name: release.name || rawTag
-                    });
-                } catch (err) {
-                    return res.status(500).json({ error: 'Error procesando respuesta de GitHub' });
-                }
-            } else if (response.statusCode === 404) {
-                return res.json({
-                    success: true,
-                    currentVersion,
-                    latestVersion: currentVersion,
-                    hasUpdate: false,
-                    noReleases: true
-                });
-            } else {
-                return res.status(500).json({ error: `GitHub API respondió con código ${response.statusCode}` });
-            }
-        });
-    });
-
-    request.on('error', (err) => {
-        console.error('[server] Error consultando actualizaciones en GitHub:', err.message);
-        res.status(500).json({ error: err.message });
-    });
-
-    request.end();
-});
-
-function isNewerVersion(latest, current) {
-    if (!latest || !current) return false;
-    const l = latest.split('.').map(n => parseInt(n, 10) || 0);
-    const c = current.split('.').map(n => parseInt(n, 10) || 0);
-    for (let i = 0; i < Math.max(l.length, c.length); i++) {
-        const lNum = l[i] || 0;
-        const cNum = c[i] || 0;
-        if (lNum > cNum) return true;
-        if (lNum < cNum) return false;
-    }
-    return false;
-}
 
 app.get('/api/scan/status', (req, res) => {
     res.json({

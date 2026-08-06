@@ -317,15 +317,39 @@
                             <input type="number" id="trashRetentionInput" class="settings-input settings-input-small" min="1" max="365" value="30">
                         </div>
 
-                        <!-- Actualizaciones -->
+                        <!-- Fecha hebrea: tres opciones independientes -->
                         <div class="settings-section">
-                            <h3 data-i18n="settings_update_title">Versión y Actualizaciones</h3>
-                            <p data-i18n="settings_update_description">Comprueba si hay una nueva versión disponible en GitHub.</p>
-                            <div class="add-folder-form" style="margin-top: 10px;">
-                                <span id="appVersionBadge" style="font-weight: 600; font-size: 0.95rem; color: var(--text-secondary); display: flex; align-items: center; background: rgba(99, 102, 241, 0.1); padding: 6px 12px; border-radius: 6px;">Local Photos v2.1.0</span>
-                                <button id="btnCheckUpdate" type="button" class="settings-btn-secondary" data-i18n="settings_check_update_button"><i class="fa-solid fa-arrows-rotate"></i> Buscar actualización</button>
+                            <h3 data-i18n="settings_hebrew_title">Fecha hebrea</h3>
+                            <div class="settings-toggle-row">
+                                <div>
+                                    <h3 class="settings-subtoggle-title" data-i18n="settings_hebrew_show_title">Mostrar la fecha hebrea en las imágenes</h3>
+                                    <p data-i18n="settings_hebrew_show_desc">Muestra también la fecha hebrea en el panel de información del visor.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="showHebrewDateToggle">
+                                    <span class="switch-slider"></span>
+                                </label>
                             </div>
-                            <div id="updateStatusNotice" style="display: none; margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; border: 1px solid transparent;"></div>
+                            <div class="settings-toggle-row">
+                                <div>
+                                    <h3 class="settings-subtoggle-title" data-i18n="settings_hebrew_sort_title">Ordenar la línea de tiempo por fecha hebrea</h3>
+                                    <p data-i18n="settings_hebrew_sort_desc">Los encabezados de fecha de la cuadrícula se muestran en el calendario hebreo.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="sortByHebrewDateToggle">
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-toggle-row">
+                                <div>
+                                    <h3 class="settings-subtoggle-title" data-i18n="settings_hebrew_memories_title">Recuerdos según la fecha hebrea</h3>
+                                    <p data-i18n="settings_hebrew_memories_desc">La tira de "Recuerdos" compara el mismo día del calendario hebreo en años anteriores.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="memoriesHebrewDateToggle">
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </div>
                         </div>
 
                         <div class="settings-actions-footer">
@@ -402,6 +426,8 @@
                 <p id="lightboxDate" data-i18n="lightbox_date_placeholder" style="margin:0;">Fecha de captura</p>
                 <button id="btnEditLightboxDate" class="lightbox-icon-btn" data-i18n-title="lightbox_change_date_title" style="padding:4px 8px;font-size:13px;opacity:0.8;background:transparent;border:none;color:inherit;cursor:pointer;"><i class="fa-solid fa-pen"></i></button>
             </div>
+            <!-- Fecha hebrea (se muestra solo si está activada la opción en Configuración) -->
+            <p id="lightboxHebrewDate" style="margin:-2px 0 10px;font-size:13px;opacity:0.75;display:none;"></p>
             <button id="lightboxOpenWindows" class="lightbox-open-btn">
                 <i class="fa-solid fa-arrow-up-right-from-square"></i> <span data-i18n="lightbox_open_system_app">Abrir con la app del sistema</span>
             </button>

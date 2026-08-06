@@ -1003,6 +1003,10 @@ html[dir="rtl"] .switch input:checked + .switch-slider::before { transform: tran
 .lightbox-nav:hover { background-color: rgba(255,255,255,0.12); }
 .lightbox-nav.prev { inset-inline-start: 12px; }
 .lightbox-nav.next { inset-inline-end: 12px; }
+/* En hebreo (RTL) los botones ya cambian de lado solos (inset-inline), pero el ícono de
+   chevron es "físico" y quedaba apuntando al revés. Se voltea para que "anterior" (a la
+   derecha en RTL) apunte a la derecha y "siguiente" (a la izquierda) apunte a la izquierda. */
+html[dir="rtl"] .lightbox-nav i { transform: scaleX(-1); }
 
 .lightbox-content {
     flex-grow: 1;

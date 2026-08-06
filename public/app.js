@@ -10,6 +10,7 @@
 
 // --- Estado global ---
 let allPhotos = [];               // último fetch de /api/photos para el timeline principal
+let timelineDirty = true;         // true = hay que reconstruir el timeline; false = reutilizar lo renderizado
 let currentGridPhotos = [];       // fotos de la cuadrícula visible ahora mismo (para que el lightbox navegue)
 let currentGridDensity = localStorage.getItem('gridDensity') || 'medium';
 let selectedIds = new Set();
@@ -50,8 +51,11 @@ function groupPhotosByDate(photos) {
     const groups = [];
     let currentLabel = null;
     let currentGroup = null;
+    const useHebrew = !!(window.appConfig && window.appConfig.sortByHebrewDate);
     photos.forEach(photo => {
-        const label = formatDateLong(photo.dateTaken);
+        // Si "ordenar por fecha hebrea" está activo, los encabezados de día se muestran en
+        // fecha hebrea. El orden cronológico es el mismo; solo cambia la etiqueta/agrupación.
+        const label = useHebrew ? formatHebrewDateLong(photo.dateTaken) : formatDateLong(photo.dateTaken);
         if (label !== currentLabel) {
             currentLabel = label;
             currentGroup = { label, year: new Date(photo.dateTaken).getFullYear(), photos: [] };
@@ -415,6 +419,10 @@ function navigateTo(pageName, params) {
 }
 
 function refreshActiveView() {
+    // refreshActiveView se llama después de cambios reales (favoritos, papelera, fecha,
+    // escaneo nuevo, densidad…), así que se marca el timeline como "sucio" para que se
+    // reconstruya la próxima vez que se muestre (o ahora mismo si está activo).
+    timelineDirty = true;
     const active = document.querySelector('.app-page.active');
     if (!active) return;
     if (active.id === 'page-timeline') loadTimeline();
@@ -436,10 +444,23 @@ function closeMobileSidebar() {
 
 async function loadTimeline() {
     const container = document.getElementById('timelineContainer');
+
+    // Vuelta instantánea: si el timeline ya está renderizado y nada cambió (solo navegaste
+    // a otra sección y volviste), NO se recarga — se reutiliza lo que ya está en pantalla.
+    // Antes se volvía a pedir /api/photos y a reconstruir todo, mostrando "Cargando fotos..."
+    // y tardando. `timelineDirty` se pone en true solo cuando algo cambia de verdad
+    // (favoritos, papelera, fecha, escaneo nuevo, densidad, idioma).
+    if (!timelineDirty && container.querySelector('.timeline-group')) {
+        currentGridPhotos = allPhotos;
+        activeGridContainerEl = container;
+        return;
+    }
+
     container.innerHTML = `<div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin fa-2x"></i><p>${escapeHtml(t('timeline_loading'))}</p></div>`;
     try {
         const photos = await API.get('/api/photos');
         allPhotos = photos;
+        timelineDirty = false;
         // La tira de "Recuerdos" se renderiza ANTES de construir la barra lateral de años:
         // va por encima del timeline y, si apareciera después, correría todo hacia abajo y
         // dejaría las posiciones de la barra desactualizadas (cada destino caería corrido por
@@ -680,16 +701,33 @@ function wireYearNavInteraction() {
 function renderMemories(photos) {
     const strip = document.getElementById('memoriesStrip');
     const scroller = document.getElementById('memoriesScroller');
-    const today = new Date();
-    const todayMonth = today.getMonth();
-    const todayDate = today.getDate();
-    const currentYear = today.getFullYear();
+    const useHebrew = !!(window.appConfig && window.appConfig.memoriesHebrewDate);
 
-    const matches = photos.filter(p => {
-        if (p.isVideo) return false;
-        const d = new Date(p.dateTaken);
-        return d.getMonth() === todayMonth && d.getDate() === todayDate && d.getFullYear() < currentYear;
-    });
+    // Según la opción, se comparan las fotos por el mismo día del calendario gregoriano o
+    // del hebreo. yearOf() y currentYearVal se calculan en el calendario elegido para que
+    // el "hace X años" también salga en años de ese calendario.
+    let matches, yearOf, currentYearVal;
+    if (useHebrew) {
+        const todayHeb = hebrewDayMonthKey(new Date());
+        currentYearVal = todayHeb ? parseInt(todayHeb.year, 10) : 0;
+        matches = photos.filter(p => {
+            if (p.isVideo) return false;
+            const h = hebrewDayMonthKey(p.dateTaken);
+            return h && todayHeb && h.key === todayHeb.key && parseInt(h.year, 10) < currentYearVal;
+        });
+        yearOf = (p) => { const h = hebrewDayMonthKey(p.dateTaken); return h ? parseInt(h.year, 10) : 0; };
+    } else {
+        const today = new Date();
+        const todayMonth = today.getMonth();
+        const todayDate = today.getDate();
+        currentYearVal = today.getFullYear();
+        matches = photos.filter(p => {
+            if (p.isVideo) return false;
+            const d = new Date(p.dateTaken);
+            return d.getMonth() === todayMonth && d.getDate() === todayDate && d.getFullYear() < currentYearVal;
+        });
+        yearOf = (p) => new Date(p.dateTaken).getFullYear();
+    }
 
     if (matches.length === 0) {
         strip.style.display = 'none';
@@ -698,7 +736,7 @@ function renderMemories(photos) {
 
     const byYear = new Map();
     matches.forEach(p => {
-        const year = new Date(p.dateTaken).getFullYear();
+        const year = yearOf(p);
         if (!byYear.has(year)) byYear.set(year, []);
         byYear.get(year).push(p);
     });
@@ -707,7 +745,7 @@ function renderMemories(photos) {
     Array.from(byYear.keys()).sort((a, b) => b - a).forEach(year => {
         const yearPhotos = byYear.get(year);
         const cover = yearPhotos[0];
-        const yearsAgo = currentYear - year;
+        const yearsAgo = currentYearVal - year;
         const card = document.createElement('div');
         card.className = 'memory-card';
         card.innerHTML = `
@@ -1261,6 +1299,13 @@ async function loadSettings() {
         applyThresholdDescription(); // localiza el texto de ayuda (Estricto/Permisivo) según el idioma
 
         document.getElementById('trashRetentionInput').value = config.trashRetentionDays || 30;
+
+        const shb = document.getElementById('showHebrewDateToggle');
+        const sortHb = document.getElementById('sortByHebrewDateToggle');
+        const memHb = document.getElementById('memoriesHebrewDateToggle');
+        if (shb) shb.checked = config.showHebrewDate === true;
+        if (sortHb) sortHb.checked = config.sortByHebrewDate === true;
+        if (memHb) memHb.checked = config.memoriesHebrewDate === true;
     } catch (e) {
         Toast.error(t('toast_settings_load_error', { error: e.message }));
     }
@@ -1344,67 +1389,6 @@ function wireSettingsPage() {
         });
     }
 
-    const btnCheckUpdate = document.getElementById('btnCheckUpdate');
-    const updateNotice = document.getElementById('updateStatusNotice');
-    if (btnCheckUpdate) {
-        btnCheckUpdate.addEventListener('click', async () => {
-            btnCheckUpdate.disabled = true;
-            btnCheckUpdate.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('update_checking')}`;
-            if (updateNotice) {
-                updateNotice.style.display = 'none';
-                updateNotice.innerHTML = '';
-            }
-            try {
-                const res = await API.get('/api/check-update');
-                if (res && res.currentVersion) {
-                    const badge = document.getElementById('appVersionBadge');
-                    if (badge) badge.textContent = `Local Photos v${res.currentVersion}`;
-                }
-                if (res && res.hasUpdate) {
-                    if (updateNotice) {
-                        updateNotice.style.display = 'block';
-                        updateNotice.style.background = 'rgba(34, 197, 94, 0.12)';
-                        updateNotice.style.borderColor = 'rgba(34, 197, 94, 0.3)';
-                        updateNotice.style.color = '#15803d';
-                        updateNotice.innerHTML = `
-                            <strong>${t('update_available', { version: res.latestVersion })}</strong><br>
-                            <a href="${res.releaseUrl}" target="_blank" class="settings-btn-primary" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; text-decoration: none;">
-                                <i class="fa-brands fa-github"></i> ${t('update_download_button', { version: res.latestVersion })}
-                            </a>
-                        `;
-                    }
-                } else if (res && res.noReleases) {
-                    if (updateNotice) {
-                        updateNotice.style.display = 'block';
-                        updateNotice.style.background = 'rgba(99, 102, 241, 0.08)';
-                        updateNotice.style.borderColor = 'rgba(99, 102, 241, 0.2)';
-                        updateNotice.style.color = 'var(--text-primary)';
-                        updateNotice.textContent = t('update_no_releases');
-                    }
-                } else {
-                    if (updateNotice) {
-                        updateNotice.style.display = 'block';
-                        updateNotice.style.background = 'rgba(99, 102, 241, 0.08)';
-                        updateNotice.style.borderColor = 'rgba(99, 102, 241, 0.2)';
-                        updateNotice.style.color = 'var(--text-primary)';
-                        updateNotice.textContent = t('update_already_latest', { version: res ? res.currentVersion : '2.1.0' });
-                    }
-                }
-            } catch (e) {
-                if (updateNotice) {
-                    updateNotice.style.display = 'block';
-                    updateNotice.style.background = 'rgba(239, 68, 68, 0.1)';
-                    updateNotice.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-                    updateNotice.style.color = '#b91c1c';
-                    updateNotice.textContent = t('update_error');
-                }
-            } finally {
-                btnCheckUpdate.disabled = false;
-                btnCheckUpdate.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> ${t('settings_check_update_button')}`;
-            }
-        });
-    }
-
     document.getElementById('newFolderPathInput').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') document.getElementById('btnAddFolder').click();
     });
@@ -1421,8 +1405,15 @@ function wireSettingsPage() {
                 folders: pendingFolders,
                 clusterThreshold: parseFloat(document.getElementById('clusterThresholdInput').value),
                 faceRecognitionEnabled: document.getElementById('faceRecognitionToggle').checked,
-                trashRetentionDays: parseInt(document.getElementById('trashRetentionInput').value, 10) || 30
+                trashRetentionDays: parseInt(document.getElementById('trashRetentionInput').value, 10) || 30,
+                showHebrewDate: document.getElementById('showHebrewDateToggle').checked,
+                sortByHebrewDate: document.getElementById('sortByHebrewDateToggle').checked,
+                memoriesHebrewDate: document.getElementById('memoriesHebrewDateToggle').checked
             });
+            // Refrescar la config cacheada y forzar re-render del timeline (por si cambió
+            // la opción de fecha hebrea en encabezados/recuerdos).
+            await loadAppConfig();
+            timelineDirty = true;
             await API.post('/api/scan/start', {});
             Toast.success(t('toast_settings_saved'));
             navigateTo('timeline');
@@ -1784,7 +1775,18 @@ function wireLangSwitcher() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Config del cliente (para las opciones de fecha hebrea). Se cachea en window.appConfig
+// para que app.js y lightbox.js la lean sin volver a pedirla en cada render.
+window.appConfig = { showHebrewDate: false, sortByHebrewDate: false, memoriesHebrewDate: false };
+async function loadAppConfig() {
+    try {
+        const cfg = await API.get('/api/config');
+        window.appConfig = Object.assign(window.appConfig, cfg || {});
+    } catch (e) { /* si falla, quedan los valores por defecto */ }
+}
+window.loadAppConfig = loadAppConfig;
+
+document.addEventListener('DOMContentLoaded', async () => {
     wireNavigation();
     wireSearch();
     wireMobileSidebar();
@@ -1797,6 +1799,10 @@ document.addEventListener('DOMContentLoaded', () => {
     wireGlobalKeyboard();
     wireLangSwitcher();
     wireYearNavInteraction();
+
+    // Se carga la config ANTES del primer render para que la agrupación por fecha hebrea
+    // (si está activada) se aplique desde el arranque, sin un re-render visible.
+    await loadAppConfig();
 
     navigateTo('timeline');
     updateStorageInfo();

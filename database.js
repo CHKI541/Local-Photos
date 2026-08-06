@@ -24,7 +24,10 @@ function defaultDb() {
             folders: [],
             clusterThreshold: 0.44,
             faceRecognitionEnabled: true,
-            trashRetentionDays: 30
+            trashRetentionDays: 30,
+            showHebrewDate: false,       // mostrar la fecha hebrea en el visor de imágenes
+            sortByHebrewDate: false,     // agrupar/encabezar la línea de tiempo por fecha hebrea
+            memoriesHebrewDate: false    // "Recuerdos" comparando por fecha hebrea en vez de gregoriana
         },
         photos: [],
         faces: [],
@@ -81,6 +84,9 @@ function ensureShape() {
     if (typeof db.config.clusterThreshold !== 'number' || Number.isNaN(db.config.clusterThreshold)) db.config.clusterThreshold = 0.44;
     if (typeof db.config.faceRecognitionEnabled !== 'boolean') db.config.faceRecognitionEnabled = true;
     if (typeof db.config.trashRetentionDays !== 'number' || Number.isNaN(db.config.trashRetentionDays)) db.config.trashRetentionDays = 30;
+    if (typeof db.config.showHebrewDate !== 'boolean') db.config.showHebrewDate = false;
+    if (typeof db.config.sortByHebrewDate !== 'boolean') db.config.sortByHebrewDate = false;
+    if (typeof db.config.memoriesHebrewDate !== 'boolean') db.config.memoriesHebrewDate = false;
     if (!Array.isArray(db.photos)) db.photos = [];
     if (!Array.isArray(db.faces)) db.faces = [];
     if (!Array.isArray(db.clusters)) db.clusters = [];
@@ -197,6 +203,9 @@ module.exports = {
         if (patch.clusterThreshold !== undefined) db.config.clusterThreshold = parseFloat(patch.clusterThreshold);
         if (patch.faceRecognitionEnabled !== undefined) db.config.faceRecognitionEnabled = !!patch.faceRecognitionEnabled;
         if (patch.trashRetentionDays !== undefined) db.config.trashRetentionDays = parseInt(patch.trashRetentionDays, 10);
+        if (patch.showHebrewDate !== undefined) db.config.showHebrewDate = !!patch.showHebrewDate;
+        if (patch.sortByHebrewDate !== undefined) db.config.sortByHebrewDate = !!patch.sortByHebrewDate;
+        if (patch.memoriesHebrewDate !== undefined) db.config.memoriesHebrewDate = !!patch.memoriesHebrewDate;
         return save(true);
     },
 

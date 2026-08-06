@@ -321,6 +321,40 @@ function formatMonthYear(date) {
 }
 window.formatMonthYear = formatMonthYear;
 
+// --- Fechas hebreas (calendario hebreo nativo del navegador vía Intl; 100% offline) ---
+// Fecha hebrea larga, p. ej. "ל׳ באדר א׳ תשפ״ד". Cae a la fecha normal si algo falla.
+function formatHebrewDateLong(dateStr) {
+    const d = (dateStr instanceof Date) ? dateStr : new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    try {
+        return new Intl.DateTimeFormat('he-u-ca-hebrew', { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+    } catch (e) { return formatDateLong(d); }
+}
+window.formatHebrewDateLong = formatHebrewDateLong;
+
+// Día + mes hebreos (sin año), p. ej. "ל׳ באדר א׳" — para mostrar junto a la foto.
+function formatHebrewDayMonth(dateStr) {
+    const d = (dateStr instanceof Date) ? dateStr : new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    try {
+        return new Intl.DateTimeFormat('he-u-ca-hebrew', { day: 'numeric', month: 'long' }).format(d);
+    } catch (e) { return ''; }
+}
+window.formatHebrewDayMonth = formatHebrewDayMonth;
+
+// Clave "día-mes" en el calendario hebreo, para comparar "Recuerdos" por fecha hebrea.
+// (Nota: en años bisiestos hebreos Adar se numera distinto; es una aproximación aceptable.)
+function hebrewDayMonthKey(dateStr) {
+    const d = (dateStr instanceof Date) ? dateStr : new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    try {
+        const parts = new Intl.DateTimeFormat('en-u-ca-hebrew', { day: 'numeric', month: 'numeric', year: 'numeric' }).formatToParts(d);
+        const get = (t) => (parts.find(p => p.type === t) || {}).value;
+        return { day: get('day'), month: get('month'), year: get('year'), key: get('day') + '-' + get('month') };
+    } catch (e) { return null; }
+}
+window.hebrewDayMonthKey = hebrewDayMonthKey;
+
 function formatShutterSpeed(exposureTime) {
     if (!exposureTime) return null;
     if (exposureTime >= 1) return `${exposureTime}s`;
