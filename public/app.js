@@ -1430,6 +1430,118 @@ function wireSettingsPage() {
     if (btnS) btnS.addEventListener('click', () => navigateTo('settings'));
     const btnHS = document.getElementById('btnHeaderSettings');
     if (btnHS) btnHS.addEventListener('click', () => navigateTo('settings'));
+
+    const btnCheckUpdate = document.getElementById('btnCheckUpdate');
+    const updateNotice = document.getElementById('updateStatusNotice');
+    const progressContainer = document.getElementById('updateProgressContainer');
+    const progressBar = document.getElementById('updateProgressBar');
+    const progressPercent = document.getElementById('updateProgressPercent');
+    const progressLabel = document.getElementById('updateProgressLabel');
+
+    let progressInterval = null;
+
+    if (btnCheckUpdate) {
+        btnCheckUpdate.addEventListener('click', async () => {
+            btnCheckUpdate.disabled = true;
+            btnCheckUpdate.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${t('update_checking')}`;
+            if (updateNotice) {
+                updateNotice.style.display = 'none';
+                updateNotice.innerHTML = '';
+            }
+            if (progressContainer) progressContainer.style.display = 'none';
+
+            try {
+                const res = await API.get('/api/check-update');
+                if (res && res.currentVersion) {
+                    const badge = document.getElementById('appVersionBadge');
+                    if (badge) badge.textContent = `Local Photos v${res.currentVersion}`;
+                }
+                
+                if (res && res.hasUpdate && res.downloadUrl) {
+                    if (updateNotice) {
+                        updateNotice.style.display = 'block';
+                        updateNotice.style.background = 'rgba(34, 197, 94, 0.12)';
+                        updateNotice.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+                        updateNotice.style.color = '#15803d';
+                        updateNotice.innerHTML = `
+                            <strong style="display: block; margin-bottom: 8px;">${t('update_available', { version: res.latestVersion })}</strong>
+                            <button id="btnStartDownloadUpdate" class="settings-btn-success" style="display: inline-flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-download"></i> ${t('update_btn_install')}
+                            </button>
+                        `;
+
+                        document.getElementById('btnStartDownloadUpdate').addEventListener('click', async () => {
+                            try {
+                                document.getElementById('btnStartDownloadUpdate').disabled = true;
+                                if (progressContainer) {
+                                    progressContainer.style.display = 'block';
+                                    progressBar.style.width = '0%';
+                                    progressPercent.textContent = '0%';
+                                    progressLabel.textContent = t('update_downloading');
+                                }
+                                
+                                await API.post('/api/update/start', { downloadUrl: res.downloadUrl });
+                                
+                                if (progressInterval) clearInterval(progressInterval);
+                                progressInterval = setInterval(async () => {
+                                    try {
+                                        const status = await API.get('/api/update/status');
+                                        if (status.status === 'downloading') {
+                                            progressBar.style.width = `${status.progress}%`;
+                                            progressPercent.textContent = `${status.progress}%`;
+                                            progressLabel.textContent = t('update_status_downloading', { percent: status.progress });
+                                        } else if (status.status === 'ready') {
+                                            clearInterval(progressInterval);
+                                            progressBar.style.width = '100%';
+                                            progressPercent.textContent = '100%';
+                                            progressLabel.textContent = t('update_status_ready');
+                                            Toast.success(t('update_status_ready'));
+                                        } else if (status.status === 'error') {
+                                            clearInterval(progressInterval);
+                                            if (progressContainer) progressContainer.style.display = 'none';
+                                            Toast.error(t('update_error') + ': ' + status.error);
+                                        }
+                                    } catch (err) {
+                                        console.error('Error polling update progress:', err);
+                                    }
+                                }, 500);
+
+                            } catch (err) {
+                                Toast.error(t('update_error') + ': ' + err.message);
+                            }
+                        });
+                    }
+                } else if (res && res.noReleases) {
+                    if (updateNotice) {
+                        updateNotice.style.display = 'block';
+                        updateNotice.style.background = 'rgba(99, 102, 241, 0.08)';
+                        updateNotice.style.borderColor = 'rgba(99, 102, 241, 0.2)';
+                        updateNotice.style.color = 'var(--text-primary)';
+                        updateNotice.textContent = t('update_no_releases');
+                    }
+                } else {
+                    if (updateNotice) {
+                        updateNotice.style.display = 'block';
+                        updateNotice.style.background = 'rgba(99, 102, 241, 0.08)';
+                        updateNotice.style.borderColor = 'rgba(99, 102, 241, 0.2)';
+                        updateNotice.style.color = 'var(--text-primary)';
+                        updateNotice.textContent = t('update_already_latest', { version: res ? res.latestVersion : '2.2.1' });
+                    }
+                }
+            } catch (e) {
+                if (updateNotice) {
+                    updateNotice.style.display = 'block';
+                    updateNotice.style.background = 'rgba(239, 68, 68, 0.1)';
+                    updateNotice.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                    updateNotice.style.color = '#b91c1c';
+                    updateNotice.textContent = t('update_error');
+                }
+            } finally {
+                btnCheckUpdate.disabled = false;
+                btnCheckUpdate.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> ${t('settings_check_update_button')}`;
+            }
+        });
+    }
 }
 
 // ============================== Estado de escaneo (fotos + caras) ==============================

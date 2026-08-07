@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 const sharp = require('sharp');
 const archiver = require('archiver');
 const { spawn, exec, execFile } = require('child_process');
@@ -876,6 +877,212 @@ app.post('/api/faces/cluster', async (req, res) => {
         console.error('Error en clustering de caras:', e.message);
         res.status(500).json({ error: 'Error al agrupar caras' });
     }
+});
+
+// --- Auto-updater variables and routes ---
+let updateStatus = { status: 'idle', progress: 0, error: null };
+
+function downloadFile(url, destPath, onProgress, onSuccess, onError) {
+    const parsedUrl = new URL(url);
+    const options = {
+        hostname: parsedUrl.hostname,
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: 'GET',
+        headers: {
+            'User-Agent': 'Local-Photos-App',
+            'Accept': 'application/octet-stream'
+        },
+        rejectUnauthorized: false // Techloq bypass
+    };
+
+    const request = https.get(options, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            return downloadFile(res.headers.location, destPath, onProgress, onSuccess, onError);
+        }
+        if (res.statusCode !== 200) {
+            return onError(new Error(`GitHub server returned status code ${res.statusCode}`));
+        }
+
+        const totalBytes = parseInt(res.headers['content-length'], 10) || 0;
+        let downloadedBytes = 0;
+        const fileStream = fs.createWriteStream(destPath);
+        
+        res.pipe(fileStream);
+
+        res.on('data', (chunk) => {
+            downloadedBytes += chunk.length;
+            if (totalBytes > 0 && onProgress) {
+                onProgress(downloadedBytes / totalBytes);
+            }
+        });
+
+        fileStream.on('finish', () => {
+            fileStream.close();
+            onSuccess();
+        });
+
+        fileStream.on('error', (err) => {
+            fs.unlink(destPath, () => {});
+            onError(err);
+        });
+    });
+
+    request.on('error', onError);
+    request.end();
+}
+
+function isNewerVersion(latest, current) {
+    if (!latest || !current) return false;
+    const l = latest.split('.').map(n => parseInt(n, 10) || 0);
+    const c = current.split('.').map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(l.length, c.length); i++) {
+        const lNum = l[i] || 0;
+        const cNum = c[i] || 0;
+        if (lNum > cNum) return true;
+        if (lNum < cNum) return false;
+    }
+    return false;
+}
+
+app.get('/api/check-update', (req, res) => {
+    let currentVersion = '2.2.0';
+    try {
+        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+        if (pkg && pkg.version) currentVersion = pkg.version;
+    } catch (e) {}
+
+    const options = {
+        hostname: 'api.github.com',
+        path: '/repos/CHKI541/Local-Photos/releases/latest',
+        method: 'GET',
+        headers: {
+            'User-Agent': 'Local-Photos-App',
+            'Accept': 'application/vnd.github.v3+json'
+        },
+        rejectUnauthorized: false // Techloq bypass
+    };
+
+    const request = https.get(options, (response) => {
+        let data = '';
+        response.on('data', chunk => { data += chunk; });
+        response.on('end', () => {
+            if (response.statusCode === 200) {
+                try {
+                    const release = JSON.parse(data);
+                    const rawTag = release.tag_name || '';
+                    const latestVersion = rawTag.replace(/^v/, '');
+                    const hasUpdate = isNewerVersion(latestVersion, currentVersion);
+                    
+                    let downloadUrl = null;
+                    if (release.assets && Array.isArray(release.assets)) {
+                        const exeAsset = release.assets.find(a => a.name && a.name.toLowerCase().endsWith('.exe'));
+                        if (exeAsset) {
+                            downloadUrl = exeAsset.browser_download_url;
+                        }
+                    }
+
+                    return res.json({
+                        success: true,
+                        currentVersion,
+                        latestVersion: latestVersion || currentVersion,
+                        hasUpdate,
+                        downloadUrl,
+                        releaseUrl: release.html_url || 'https://github.com/CHKI541/Local-Photos/releases',
+                        name: release.name || rawTag
+                    });
+                } catch (err) {
+                    return res.status(500).json({ error: 'Error procesando respuesta de GitHub' });
+                }
+            } else if (response.statusCode === 404) {
+                return res.json({
+                    success: true,
+                    currentVersion,
+                    latestVersion: currentVersion,
+                    hasUpdate: false,
+                    noReleases: true
+                });
+            } else {
+                return res.status(500).json({ error: `GitHub API respondió con código ${response.statusCode}` });
+            }
+        });
+    });
+
+    request.on('error', (err) => {
+        console.error('[server] Error consultando actualizaciones en GitHub:', err.message);
+        res.status(500).json({ error: err.message });
+    });
+
+    request.end();
+});
+
+app.get('/api/update/status', (req, res) => {
+    res.json(updateStatus);
+});
+
+app.post('/api/update/start', (req, res) => {
+    const { downloadUrl } = req.body || {};
+    if (!downloadUrl) {
+        return res.status(400).json({ error: 'Falta la URL de descarga' });
+    }
+
+    if (updateStatus.status === 'downloading') {
+        return res.json({ success: true, message: 'Descarga ya en curso' });
+    }
+
+    updateStatus = { status: 'downloading', progress: 0, error: null };
+    
+    const os = require('os');
+    const tempDest = path.join(os.tmpdir(), `LocalPhotosSetup_vLatest.exe`);
+
+    console.log(`[server] Iniciando descarga de actualización desde: ${downloadUrl}`);
+    console.log(`[server] Guardando en destino temporal: ${tempDest}`);
+
+    downloadFile(downloadUrl, tempDest,
+        (progress) => {
+            updateStatus.progress = Math.round(progress * 100);
+        },
+        () => {
+            console.log('[server] Descarga completada con éxito. Listo para instalar.');
+            updateStatus.status = 'ready';
+            updateStatus.progress = 100;
+
+            setTimeout(() => {
+                try {
+                    console.log('[server] Ejecutando instalador y cerrando aplicación...');
+                    const child = spawn(tempDest, [], {
+                        detached: true,
+                        stdio: 'ignore'
+                    });
+                    child.unref();
+
+                    let electronApp = null;
+                    try {
+                        const electron = require('electron');
+                        if (electron && electron.app) {
+                            electronApp = electron.app;
+                        }
+                    } catch (e) {}
+
+                    if (electronApp) {
+                        electronApp.quit();
+                    } else {
+                        process.exit(0);
+                    }
+                } catch (err) {
+                    console.error('[server] Error al ejecutar instalador:', err.message);
+                    updateStatus.status = 'error';
+                    updateStatus.error = err.message;
+                }
+            }, 1500);
+        },
+        (err) => {
+            console.error('[server] Error descargando archivo:', err.message);
+            updateStatus.status = 'error';
+            updateStatus.error = err.message;
+        }
+    );
+
+    res.json({ success: true, message: 'Descarga de actualización iniciada' });
 });
 
 // ============================== Tareas de fondo ==============================

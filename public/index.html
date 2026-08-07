@@ -348,7 +348,28 @@
                                 <label class="switch">
                                     <input type="checkbox" id="memoriesHebrewDateToggle">
                                     <span class="switch-slider"></span>
-                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Actualizaciones -->
+                        <div class="settings-section">
+                            <h3 data-i18n="settings_update_title">Versión y Actualizaciones</h3>
+                            <p data-i18n="settings_update_description">Comprueba si hay una nueva versión disponible en GitHub.</p>
+                            <div class="add-folder-form" style="margin-top: 10px;">
+                                <span id="appVersionBadge" style="font-weight: 600; font-size: 0.95rem; color: var(--text-secondary); display: flex; align-items: center; background: rgba(99, 102, 241, 0.1); padding: 6px 12px; border-radius: 6px;">Local Photos v2.2.1</span>
+                                <button id="btnCheckUpdate" type="button" class="settings-btn-secondary" data-i18n="settings_check_update_button"><i class="fa-solid fa-arrows-rotate"></i> Buscar actualización</button>
+                            </div>
+                            <div id="updateStatusNotice" style="display: none; margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; border: 1px solid transparent;"></div>
+                            
+                            <!-- Barra de progreso para descarga automática -->
+                            <div id="updateProgressContainer" style="display: none; margin-top: 12px; padding: 14px; border-radius: 8px; background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.15);">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; font-weight: 600; color: var(--text-primary);">
+                                    <span id="updateProgressLabel" data-i18n="update_downloading">Descargando actualización...</span>
+                                    <span id="updateProgressPercent">0%</span>
+                                </div>
+                                <div style="width: 100%; background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden;">
+                                    <div id="updateProgressBar" style="width: 0%; height: 100%; background: var(--color-primary, #6366f1); transition: width 0.2s ease;"></div>
+                                </div>
                             </div>
                         </div>
 
