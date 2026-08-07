@@ -529,20 +529,25 @@ function renderYearNav(wrappers) {
 
     // Un checkpoint por mes (para las marcas), y el primero de cada año (para
     // las etiquetas grandes).
+    // Si "ordenar por fecha hebrea" está activo, la barra lateral agrupa y etiqueta por
+    // AÑO y MES del calendario hebreo (calculados con Intl), no por el gregoriano.
+    const navHebrew = !!(window.appConfig && window.appConfig.sortByHebrewDate);
     const monthMarks = [];
     const yearLabels = [];
     let lastMonthKey = null;
     let lastYear = null;
     checkpoints.forEach(cp => {
-        const y = cp.date.getFullYear();
-        const monthKey = `${y}-${cp.date.getMonth()}`;
+        const y = navHebrew ? hebrewYearNum(cp.date) : cp.date.getFullYear();
+        const m = navHebrew ? hebrewMonthNum(cp.date) : cp.date.getMonth();
+        const monthKey = `${y}-${m}`;
         if (monthKey !== lastMonthKey) {
             lastMonthKey = monthKey;
             monthMarks.push({ top: cp.top, navY: toNavY(cp.top) });
         }
         if (y !== lastYear) {
             lastYear = y;
-            yearLabels.push({ top: cp.top, year: y, navY: toNavY(cp.top) });
+            // Se guarda la fecha para poder formatear el año hebreo (gematría) en la etiqueta.
+            yearLabels.push({ top: cp.top, year: y, date: cp.date, navY: toNavY(cp.top) });
         }
     });
 
@@ -574,7 +579,7 @@ function renderYearNav(wrappers) {
     chosen.forEach(yl => {
         const el = document.createElement('div');
         el.className = 'year-nav-item';
-        el.textContent = yl.year;
+        el.textContent = navHebrew ? formatHebrewYear(yl.date) : yl.year;
         el.style.top = yl.navY + 'px';
         track.appendChild(el);
         placedYearLabels.push({ top: yl.top, navY: yl.navY, el });
@@ -636,7 +641,8 @@ function updateYearNavScrubber(clientY, shouldScroll) {
     const { y, scrollTopTarget, date } = yearNavPositionFromClientY(clientY);
     yearNavState.handleEl.style.top = y + 'px';
     yearNavState.tooltipEl.style.top = y + 'px';
-    yearNavState.tooltipEl.textContent = formatMonthYear(date);
+    yearNavState.tooltipEl.textContent = (window.appConfig && window.appConfig.sortByHebrewDate)
+        ? formatHebrewMonthYear(date) : formatMonthYear(date);
     if (shouldScroll) yearNavState.pageViewport.scrollTop = scrollTopTarget;
 }
 

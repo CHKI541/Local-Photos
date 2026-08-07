@@ -321,37 +321,71 @@ function formatMonthYear(date) {
 }
 window.formatMonthYear = formatMonthYear;
 
-// --- Fechas hebreas (calendario hebreo nativo del navegador vía Intl; 100% offline) ---
-// Fecha hebrea larga, p. ej. "ל׳ באדר א׳ תשפ״ד". Cae a la fecha normal si algo falla.
-function formatHebrewDateLong(dateStr) {
-    const d = (dateStr instanceof Date) ? dateStr : new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    try {
-        return new Intl.DateTimeFormat('he-u-ca-hebrew', { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
-    } catch (e) { return formatDateLong(d); }
-}
-window.formatHebrewDateLong = formatHebrewDateLong;
+// --- Fechas hebreas (calendario hebreo nativo vía Intl + numerales en gematría; 100% offline) ---
 
-// Día + mes hebreos (sin año), p. ej. "ל׳ באדר א׳" — para mostrar junto a la foto.
-function formatHebrewDayMonth(dateStr) {
-    const d = (dateStr instanceof Date) ? dateStr : new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    try {
-        return new Intl.DateTimeFormat('he-u-ca-hebrew', { day: 'numeric', month: 'long' }).format(d);
-    } catch (e) { return ''; }
+// Convierte un número a numeral hebreo con gueresh/gershayim. Se usa para el día (1-30) y
+// para el año ya SIN los miles (p.ej. 786). Ej.: 11 → "י״א", 15 → "ט״ו", 30 → "ל׳", 786 → "תשפ״ו".
+function toHebrewNumeral(n) {
+    if (!n || n <= 0) return '';
+    const ones = ['', 'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט'];
+    const tens = ['', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ'];
+    const hundreds = ['', 'ק', 'ר', 'ש', 'ת', 'תק', 'תר', 'תש', 'תת', 'תתק'];
+    let s = hundreds[Math.floor(n / 100)] || '';
+    n %= 100;
+    if (n === 15) s += 'טו';            // 15 y 16 se escriben טו/טז (no יה/יו)
+    else if (n === 16) s += 'טז';
+    else { s += tens[Math.floor(n / 10)] || ''; s += ones[n % 10] || ''; }
+    if (s.length === 1) return s + '׳';                 // gueresh (un solo carácter)
+    return s.slice(0, -1) + '״' + s.slice(-1);          // gershayim (antes del último carácter)
 }
-window.formatHebrewDayMonth = formatHebrewDayMonth;
+window.toHebrewNumeral = toHebrewNumeral;
 
-// Clave "día-mes" en el calendario hebreo, para comparar "Recuerdos" por fecha hebrea.
-// (Nota: en años bisiestos hebreos Adar se numera distinto; es una aproximación aceptable.)
-function hebrewDayMonthKey(dateStr) {
+// Partes de la fecha en el calendario hebreo: día/mes/año (enteros) + nombre del mes en hebreo.
+function hebrewParts(dateStr) {
     const d = (dateStr instanceof Date) ? dateStr : new Date(dateStr);
     if (isNaN(d.getTime())) return null;
     try {
         const parts = new Intl.DateTimeFormat('en-u-ca-hebrew', { day: 'numeric', month: 'numeric', year: 'numeric' }).formatToParts(d);
         const get = (t) => (parts.find(p => p.type === t) || {}).value;
-        return { day: get('day'), month: get('month'), year: get('year'), key: get('day') + '-' + get('month') };
+        const monthName = new Intl.DateTimeFormat('he-u-ca-hebrew', { month: 'long' }).format(d);
+        return { day: parseInt(get('day'), 10), month: parseInt(get('month'), 10), year: parseInt(get('year'), 10), monthName };
     } catch (e) { return null; }
+}
+window.hebrewParts = hebrewParts;
+
+// Fecha hebrea completa en gematría, p. ej. "כ״א אב תשפ״ו".
+function formatHebrewDateLong(dateStr) {
+    const p = hebrewParts(dateStr);
+    if (!p) return formatDateLong(dateStr);
+    return `${toHebrewNumeral(p.day)} ${p.monthName} ${toHebrewNumeral(p.year % 1000)}`;
+}
+window.formatHebrewDateLong = formatHebrewDateLong;
+
+// Año hebreo en gematría, p. ej. "תשפ״ו" (etiquetas de la barra lateral).
+function formatHebrewYear(dateStr) {
+    const p = hebrewParts(dateStr);
+    return p ? toHebrewNumeral(p.year % 1000) : '';
+}
+window.formatHebrewYear = formatHebrewYear;
+
+// Mes + año hebreos, p. ej. "אב תשפ״ו" (burbuja de la barra lateral).
+function formatHebrewMonthYear(dateStr) {
+    const p = hebrewParts(dateStr);
+    return p ? `${p.monthName} ${toHebrewNumeral(p.year % 1000)}` : '';
+}
+window.formatHebrewMonthYear = formatHebrewMonthYear;
+
+// Año / mes hebreos como número entero (para agrupar la barra lateral por año/mes hebreo).
+function hebrewYearNum(dateStr) { const p = hebrewParts(dateStr); return p ? p.year : 0; }
+function hebrewMonthNum(dateStr) { const p = hebrewParts(dateStr); return p ? p.month : 0; }
+window.hebrewYearNum = hebrewYearNum;
+window.hebrewMonthNum = hebrewMonthNum;
+
+// Clave "día-mes" hebrea, para comparar "Recuerdos" (mismo día del calendario hebreo).
+// (Nota: en años bisiestos hebreos Adar א׳/ב׳ es un caso borde aceptable.)
+function hebrewDayMonthKey(dateStr) {
+    const p = hebrewParts(dateStr);
+    return p ? { day: p.day, month: p.month, year: p.year, key: p.day + '-' + p.month } : null;
 }
 window.hebrewDayMonthKey = hebrewDayMonthKey;
 
