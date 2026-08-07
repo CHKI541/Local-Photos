@@ -1049,8 +1049,12 @@ html[dir="rtl"] .lightbox-nav i { transform: scaleX(-1); }
 }
 /* translateX no sigue la dirección lógica del documento (a diferencia de
    left/right), así que en RTL el panel debe deslizarse hacia el lado opuesto
-   para salir de pantalla por el borde correcto. */
-html[dir="rtl"] .lightbox-info-panel { transform: translateX(-100%); }
+   para salir de pantalla por el borde correcto.
+   OJO: el ":not(.visible)" es CLAVE. Sin él, esta regla RTL (más específica que
+   ".lightbox-info-panel.visible") le ganaba al estado visible y el panel quedaba
+   SIEMPRE fuera de pantalla en hebreo → el panel de información "no mostraba nada".
+   Con ":not(.visible)" la regla de ocultar solo aplica cuando NO está abierto. */
+html[dir="rtl"] .lightbox-info-panel:not(.visible) { transform: translateX(-100%); }
 .lightbox-info-panel.visible { transform: translateX(0); }
 .lightbox-info-panel h4 { font-size: 16px; font-weight: 500; margin-bottom: 4px; word-break: break-word; }
 .lightbox-info-panel p#lightboxDate { font-size: 13px; color: #dadce0; margin-bottom: 16px; }

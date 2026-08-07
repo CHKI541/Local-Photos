@@ -172,8 +172,9 @@ function datePickerDialog(opts) {
         if (initialDate) {
             const d = new Date(initialDate);
             if (!isNaN(d.getTime())) {
-                const tzoffset = (new Date()).getTimezoneOffset() * 60000;
-                defaultVal = (new Date(d.getTime() - tzoffset)).toISOString().slice(0, 16);
+                // Mostramos la fecha/hora REAL de la foto (componentes UTC), igual que el
+                // resto de la app; así lo que editás coincide exactamente con lo que ves.
+                defaultVal = d.toISOString().slice(0, 16);
             }
         }
         overlay.innerHTML = `
@@ -204,14 +205,14 @@ function datePickerDialog(opts) {
         function onKey(e) {
             if (e.key === 'Escape') close(null);
             else if (e.key === 'Enter') {
-                if (input.value) close(new Date(input.value).toISOString());
+                if (input.value) close(new Date(input.value + 'Z').toISOString());
                 else close(null);
             }
         }
         document.addEventListener('keydown', onKey);
         overlay.querySelector('.confirm-cancel').addEventListener('click', () => close(null));
         overlay.querySelector('.confirm-ok').addEventListener('click', () => {
-            if (input.value) close(new Date(input.value).toISOString());
+            if (input.value) close(new Date(input.value + 'Z').toISOString());
             else close(null);
         });
         overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(null); });
@@ -289,31 +290,38 @@ function formatDuration(seconds) {
 }
 window.formatDuration = formatDuration;
 
+// IMPORTANTE — Todas las fechas se muestran usando la hora REAL de captura de la
+// foto (los componentes UTC del ISO guardado), con timeZone:'UTC'. NO se convierte
+// a la zona horaria local del equipo. Convertir a la hora local (p. ej. Buenos
+// Aires, UTC-3) corría las fotos sacadas después de medianoche un día hacia atrás,
+// y justo en Rosh Hashaná ese "día de menos" se volvía un AÑO hebreo de menos.
+// Fijando timeZone:'UTC' la fecha coincide siempre con el reloj de la cámara, y el
+// gregoriano y el hebreo quedan idénticos entre sí.
 function formatDateLong(dateStr) {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString(window.localeTag ? window.localeTag() : 'es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    return d.toLocaleDateString(window.localeTag ? window.localeTag() : 'es-ES', { timeZone: 'UTC', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 }
 window.formatDateLong = formatDateLong;
 
 function formatDateShort(dateStr) {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString(window.localeTag ? window.localeTag() : 'es-ES', { year: 'numeric', month: 'short', day: 'numeric' });
+    return d.toLocaleDateString(window.localeTag ? window.localeTag() : 'es-ES', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' });
 }
 window.formatDateShort = formatDateShort;
 
 function formatTime(dateStr) {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleTimeString(window.localeTag ? window.localeTag() : 'es-ES', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString(window.localeTag ? window.localeTag() : 'es-ES', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
 }
 window.formatTime = formatTime;
 
 function formatMonthYear(date) {
     const d = (date instanceof Date) ? date : new Date(date);
     if (isNaN(d.getTime())) return '';
-    const formatted = d.toLocaleDateString(window.localeTag ? window.localeTag() : 'es-ES', { month: 'short', year: 'numeric' });
+    const formatted = d.toLocaleDateString(window.localeTag ? window.localeTag() : 'es-ES', { timeZone: 'UTC', month: 'short', year: 'numeric' });
     // Capitalizamos la primera letra: español/inglés dan meses en minúscula
     // ("jul 2024" → "Jul 2024"), que es justo el estilo que buscamos para la burbuja
     // de la barra lateral. En hebreo no hay mayúsculas, así que es inocuo.
@@ -340,15 +348,24 @@ function toHebrewNumeral(n) {
 }
 window.toHebrewNumeral = toHebrewNumeral;
 
-// Partes de la fecha en el calendario hebreo: día/mes/año (enteros) + nombre del mes en hebreo.
+// Partes de la fecha en el calendario hebreo: día/año (enteros), clave e nombre del mes.
+// Se calcula sobre la fecha REAL de captura (componentes UTC del ISO), anclada al
+// MEDIODÍA UTC de ese día civil: así es inmune a la zona horaria local (que corría el
+// día —y en Rosh Hashaná el año— hacia atrás) y a cualquier ajuste de horario de verano.
 function hebrewParts(dateStr) {
-    const d = (dateStr instanceof Date) ? dateStr : new Date(dateStr);
-    if (isNaN(d.getTime())) return null;
+    const src = (dateStr instanceof Date) ? dateStr : new Date(dateStr);
+    if (isNaN(src.getTime())) return null;
     try {
-        const parts = new Intl.DateTimeFormat('en-u-ca-hebrew', { day: 'numeric', month: 'numeric', year: 'numeric' }).formatToParts(d);
+        const anchor = new Date(Date.UTC(src.getUTCFullYear(), src.getUTCMonth(), src.getUTCDate(), 12, 0, 0));
+        const parts = new Intl.DateTimeFormat('en-u-ca-hebrew', { timeZone: 'UTC', day: 'numeric', month: 'numeric', year: 'numeric' }).formatToParts(anchor);
         const get = (t) => (parts.find(p => p.type === t) || {}).value;
-        const monthName = new Intl.DateTimeFormat('he-u-ca-hebrew', { month: 'long' }).format(d);
-        return { day: parseInt(get('day'), 10), month: parseInt(get('month'), 10), year: parseInt(get('year'), 10), monthName };
+        // OJO: al pedir día+mes+año juntos, ICU devuelve el NOMBRE del mes ("Shevat"),
+        // no un número (por eso antes 'month' quedaba en NaN). Ese nombre en inglés es un
+        // identificador ESTABLE del mes hebreo (distingue "Adar I"/"Adar II" en años
+        // bisiestos), ideal como clave para agrupar y para "Recuerdos".
+        const monthKey = get('month');
+        const monthName = new Intl.DateTimeFormat('he-u-ca-hebrew', { timeZone: 'UTC', month: 'long' }).format(anchor);
+        return { day: parseInt(get('day'), 10), monthKey, year: parseInt(get('year'), 10), monthName };
     } catch (e) { return null; }
 }
 window.hebrewParts = hebrewParts;
@@ -375,17 +392,18 @@ function formatHebrewMonthYear(dateStr) {
 }
 window.formatHebrewMonthYear = formatHebrewMonthYear;
 
-// Año / mes hebreos como número entero (para agrupar la barra lateral por año/mes hebreo).
+// Año hebreo (entero) y clave de mes hebreo (nombre estable) para agrupar la barra lateral.
 function hebrewYearNum(dateStr) { const p = hebrewParts(dateStr); return p ? p.year : 0; }
-function hebrewMonthNum(dateStr) { const p = hebrewParts(dateStr); return p ? p.month : 0; }
+function hebrewMonthNum(dateStr) { const p = hebrewParts(dateStr); return p ? p.monthKey : ''; }
 window.hebrewYearNum = hebrewYearNum;
 window.hebrewMonthNum = hebrewMonthNum;
 
 // Clave "día-mes" hebrea, para comparar "Recuerdos" (mismo día del calendario hebreo).
-// (Nota: en años bisiestos hebreos Adar א׳/ב׳ es un caso borde aceptable.)
+// Usa el nombre estable del mes (monthKey), así "Nisán" coincide entre años comunes y
+// bisiestos (donde el número de mes cambia por el Adar duplicado).
 function hebrewDayMonthKey(dateStr) {
     const p = hebrewParts(dateStr);
-    return p ? { day: p.day, month: p.month, year: p.year, key: p.day + '-' + p.month } : null;
+    return p ? { day: p.day, monthKey: p.monthKey, year: p.year, key: p.day + '-' + p.monthKey } : null;
 }
 window.hebrewDayMonthKey = hebrewDayMonthKey;
 

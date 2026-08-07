@@ -27,7 +27,8 @@ function defaultDb() {
             trashRetentionDays: 30,
             showHebrewDate: false,       // mostrar la fecha hebrea en el visor de imágenes
             sortByHebrewDate: false,     // agrupar/encabezar la línea de tiempo por fecha hebrea
-            memoriesHebrewDate: false    // "Recuerdos" comparando por fecha hebrea en vez de gregoriana
+            memoriesHebrewDate: false,   // "Recuerdos" comparando por fecha hebrea en vez de gregoriana
+            scanOnStartup: false         // re-escanear las carpetas al abrir la app (apagado: abre al instante con lo ya indexado)
         },
         photos: [],
         faces: [],
@@ -87,6 +88,7 @@ function ensureShape() {
     if (typeof db.config.showHebrewDate !== 'boolean') db.config.showHebrewDate = false;
     if (typeof db.config.sortByHebrewDate !== 'boolean') db.config.sortByHebrewDate = false;
     if (typeof db.config.memoriesHebrewDate !== 'boolean') db.config.memoriesHebrewDate = false;
+    if (typeof db.config.scanOnStartup !== 'boolean') db.config.scanOnStartup = false;
     if (!Array.isArray(db.photos)) db.photos = [];
     if (!Array.isArray(db.faces)) db.faces = [];
     if (!Array.isArray(db.clusters)) db.clusters = [];
@@ -206,6 +208,7 @@ module.exports = {
         if (patch.showHebrewDate !== undefined) db.config.showHebrewDate = !!patch.showHebrewDate;
         if (patch.sortByHebrewDate !== undefined) db.config.sortByHebrewDate = !!patch.sortByHebrewDate;
         if (patch.memoriesHebrewDate !== undefined) db.config.memoriesHebrewDate = !!patch.memoriesHebrewDate;
+        if (patch.scanOnStartup !== undefined) db.config.scanOnStartup = !!patch.scanOnStartup;
         return save(true);
     },
 

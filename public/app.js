@@ -58,7 +58,7 @@ function groupPhotosByDate(photos) {
         const label = useHebrew ? formatHebrewDateLong(photo.dateTaken) : formatDateLong(photo.dateTaken);
         if (label !== currentLabel) {
             currentLabel = label;
-            currentGroup = { label, year: new Date(photo.dateTaken).getFullYear(), photos: [] };
+            currentGroup = { label, year: new Date(photo.dateTaken).getUTCFullYear(), photos: [] };
             groups.push(currentGroup);
         }
         currentGroup.photos.push(photo);
@@ -537,8 +537,8 @@ function renderYearNav(wrappers) {
     let lastMonthKey = null;
     let lastYear = null;
     checkpoints.forEach(cp => {
-        const y = navHebrew ? hebrewYearNum(cp.date) : cp.date.getFullYear();
-        const m = navHebrew ? hebrewMonthNum(cp.date) : cp.date.getMonth();
+        const y = navHebrew ? hebrewYearNum(cp.date) : cp.date.getUTCFullYear();
+        const m = navHebrew ? hebrewMonthNum(cp.date) : cp.date.getUTCMonth();
         const monthKey = `${y}-${m}`;
         if (monthKey !== lastMonthKey) {
             lastMonthKey = monthKey;
@@ -729,10 +729,12 @@ function renderMemories(photos) {
         currentYearVal = today.getFullYear();
         matches = photos.filter(p => {
             if (p.isVideo) return false;
+            // Comparamos por la fecha REAL de la foto (componentes UTC), igual que en todo
+            // el resto de la app, para no desfasar "Recuerdos" por la zona horaria local.
             const d = new Date(p.dateTaken);
-            return d.getMonth() === todayMonth && d.getDate() === todayDate && d.getFullYear() < currentYearVal;
+            return d.getUTCMonth() === todayMonth && d.getUTCDate() === todayDate && d.getUTCFullYear() < currentYearVal;
         });
-        yearOf = (p) => new Date(p.dateTaken).getFullYear();
+        yearOf = (p) => new Date(p.dateTaken).getUTCFullYear();
     }
 
     if (matches.length === 0) {
@@ -1312,6 +1314,8 @@ async function loadSettings() {
         if (shb) shb.checked = config.showHebrewDate === true;
         if (sortHb) sortHb.checked = config.sortByHebrewDate === true;
         if (memHb) memHb.checked = config.memoriesHebrewDate === true;
+        const scanStart = document.getElementById('scanOnStartupToggle');
+        if (scanStart) scanStart.checked = config.scanOnStartup === true;
     } catch (e) {
         Toast.error(t('toast_settings_load_error', { error: e.message }));
     }
@@ -1414,7 +1418,8 @@ function wireSettingsPage() {
                 trashRetentionDays: parseInt(document.getElementById('trashRetentionInput').value, 10) || 30,
                 showHebrewDate: document.getElementById('showHebrewDateToggle').checked,
                 sortByHebrewDate: document.getElementById('sortByHebrewDateToggle').checked,
-                memoriesHebrewDate: document.getElementById('memoriesHebrewDateToggle').checked
+                memoriesHebrewDate: document.getElementById('memoriesHebrewDateToggle').checked,
+                scanOnStartup: document.getElementById('scanOnStartupToggle').checked
             });
             // Refrescar la config cacheada y forzar re-render del timeline (por si cambió
             // la opción de fecha hebrea en encabezados/recuerdos).

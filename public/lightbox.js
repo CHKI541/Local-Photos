@@ -405,7 +405,9 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 await API.post(`/api/photos/${photo.id}/date`, { dateTaken: newDate });
                 photo.dateTaken = newDate;
-                document.getElementById('lightboxDate').textContent = `${formatDateLong(newDate)} · ${formatTime(newDate)}`;
+                // Repintamos TODO el panel (incluida la fecha hebrea), no solo la gregoriana:
+                // antes la fecha hebrea quedaba con el valor viejo hasta cambiar de foto.
+                updateInfoPanel(photo);
                 Toast.success(t('toast_date_updated_one'));
                 if (typeof window.refreshActiveView === 'function') window.refreshActiveView();
             } catch (err) {

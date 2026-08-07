@@ -100,7 +100,7 @@ function streamFile(req, res, filePath, extraHeaders = {}) {
 app.get('/api/config', (req, res) => { res.json(db.config); });
 
 app.post('/api/config', async (req, res) => {
-    const { folders, clusterThreshold, faceRecognitionEnabled, trashRetentionDays, showHebrewDate, sortByHebrewDate, memoriesHebrewDate } = req.body || {};
+    const { folders, clusterThreshold, faceRecognitionEnabled, trashRetentionDays, showHebrewDate, sortByHebrewDate, memoriesHebrewDate, scanOnStartup } = req.body || {};
     const patch = {};
     if (folders !== undefined) {
         if (!Array.isArray(folders)) return res.status(400).json({ error: 'folders debe ser un array' });
@@ -112,6 +112,7 @@ app.post('/api/config', async (req, res) => {
     if (showHebrewDate !== undefined) patch.showHebrewDate = showHebrewDate;
     if (sortByHebrewDate !== undefined) patch.sortByHebrewDate = sortByHebrewDate;
     if (memoriesHebrewDate !== undefined) patch.memoriesHebrewDate = memoriesHebrewDate;
+    if (scanOnStartup !== undefined) patch.scanOnStartup = scanOnStartup;
     await db.saveConfig(patch);
     res.json({ success: true, config: db.config });
 });
@@ -1115,8 +1116,14 @@ app.listen(PORT, () => {
         mediaActions.purgeExpiredTrash().catch(err => console.error('[server] Error purgando la papelera:', err.message));
     }, 24 * 60 * 60 * 1000);
 
-    if (db.config.folders.length > 0 && !scanner.getIsScanning()) {
-        console.log('[server] Carpetas configuradas detectadas, iniciando escaneo automático...');
+    // Escaneo al abrir: SOLO si el usuario lo activó explícitamente (scanOnStartup).
+    // Por defecto está apagado, así la app abre al instante usando el índice ya
+    // guardado en db.json, sin volver a recorrer las carpetas cada vez. Las fotos
+    // nuevas se suman con el botón "Guardar y escanear" o activando esta opción.
+    if (db.config.scanOnStartup && db.config.folders.length > 0 && !scanner.getIsScanning()) {
+        console.log('[server] scanOnStartup activo: iniciando escaneo automático...');
         scanner.startScan().catch(err => console.error('[server] Error en escaneo automático:', err.message));
+    } else {
+        console.log('[server] Escaneo al abrir desactivado (scanOnStartup=false): usando el índice guardado.');
     }
 });
